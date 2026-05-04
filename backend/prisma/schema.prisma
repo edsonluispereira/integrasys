@@ -1,0 +1,241 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id       String  @id @default(uuid())
+  username String  @unique
+  password String
+  groups   Group[] @relation("UserGroups")
+}
+
+model Group {
+  id          String       @id @default(uuid())
+  name        String       @unique
+  description String?
+  permissions Permission[] @relation("GroupPermissions")
+  users       User[]       @relation("UserGroups")
+}
+
+model Permission {
+  id     String  @id @default(uuid())
+  code   String  @unique // e.g. SALES_READ, FINANCE_WRITE
+  name   String
+  groups Group[] @relation("GroupPermissions")
+}
+
+model Customer {
+  id             String         @id @default(uuid())
+  name           String
+  type           String         // PF or PJ
+  document       String         // CPF or CNPJ
+  ie             String?        // Inscricao Estadual
+  email          String?
+  phone          String?
+  street         String?
+  number         String?
+  neighborhood   String?
+  city           String?
+  state          String?
+  zip_code       String?
+  delivery_type  String?        // ENTREGA | RETIRADA
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+  
+  // Fiscal fields
+  ibge_city_code String?
+  ind_iedest     String?        // 1-Contribuinte, 2-Isento, 9-Não Contribuinte
+  
+  products       Product[]      @relation("ProductCustomers")
+  salesOrders    SalesOrder[]
+}
+
+model Material {
+  id        String    @id @default(uuid())
+  name      String    @unique
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  products  Product[]
+}
+
+model Product {
+  id             String         @id @default(uuid())
+  cod_item       String         @unique
+  description    String
+  measurements   String?
+  image_url      String?
+  piece_type     String?        // PECA_REDONDA | GABARITO | PECA_RETA
+  unit_price     Decimal?       @db.Decimal(10, 2)
+  hasStructure   Boolean        @default(false)   // true = produto kit/conjunto com BOM
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+  
+  // Fiscal fields
+  ncm            String?
+  cest           String?
+  cfop_default   String?
+  tax_origin     Int?           @default(0)
+  
+  // Muitos clientes por produto (many-to-many)
+  customers      Customer[]     @relation("ProductCustomers")
+
+  // Material utilizado
+  materialId     String?
+  material       Material?      @relation(fields: [materialId], references: [id])
+
+  orderItems     OrderItem[]
+
+  // Estrutura do produto (BOM): este produto como PAI contendo componentes
+  components     ProductComponent[] @relation("ParentProduct")
+  // Onde este produto aparece como COMPONENTE de outro
+  usedIn         ProductComponent[] @relation("ComponentProduct")
+}
+
+model ProductComponent {
+  id            String   @id @default(uuid())
+  quantity      Decimal  @db.Decimal(10, 3)
+  createdAt     DateTime @default(now())
+
+  parentId      String
+  parent        Product  @relation("ParentProduct",    fields: [parentId],    references: [id])
+
+  componentId   String
+  component     Product  @relation("ComponentProduct", fields: [componentId], references: [id])
+
+  @@unique([parentId, componentId])
+}
+
+model SalesOrder {
+  id             String         @id @default(uuid())
+  date           DateTime       @default(now())
+  status         String         // OPEN, CLOSED, CANCELLED
+  totalAmount    Decimal        @db.Decimal(10, 2)
+  delivery_type  String?        // ENTREGA | RETIRADA (copiado do cliente)
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+  
+  customerId     String
+  customer       Customer       @relation(fields: [customerId], references: [id])
+
+  paymentMethodId String?
+  paymentMethod   PaymentMethod? @relation(fields: [paymentMethodId], references: [id])
+
+  items          OrderItem[]
+  manufacturing  ManufacturingOrder?
+  transactions   FinancialTransaction[]
+  invoice        Invoice?
+}
+
+model OrderItem {
+  id                 String         @id @default(uuid())
+  quantity           Int
+  unitPrice          Decimal        @db.Decimal(10, 2)
+  custom_description String?        // Descrição livre para item avulso
+  
+  salesOrderId   String
+  salesOrder     SalesOrder     @relation(fields: [salesOrderId], references: [id])
+  
+  productId      String?        // Opcional: null quando item avulso
+  product        Product?       @relation(fields: [productId], references: [id])
+}
+
+model ManufacturingOrder {
+  id             String         @id @default(uuid())
+  description    String?
+  status         String         // PENDING, IN_PROGRESS, COMPLETED
+  startDate      DateTime?
+  endDate        DateTime?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+  
+  salesOrderId   String         @unique
+  salesOrder     SalesOrder     @relation(fields: [salesOrderId], references: [id])
+}
+
+model FinancialTransaction {
+  id             String         @id @default(uuid())
+  type           String         // INCOME (Receivable), EXPENSE (Payable)
+  description    String
+  amount         Decimal        @db.Decimal(10, 2)
+  dueDate        DateTime
+  paymentDate    DateTime?
+  status         String         // PENDING, PAID
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+  
+  salesOrderId   String?
+  salesOrder     SalesOrder?    @relation(fields: [salesOrderId], references: [id])
+
+  supplierId     String?
+  supplier       Supplier?      @relation(fields: [supplierId], references: [id])
+}
+
+model Supplier {
+  id             String         @id @default(uuid())
+  name           String
+  cnpj           String?
+  email          String?
+  phone          String?
+  street         String?
+  number         String?
+  neighborhood   String?
+  city           String?
+  state          String?
+  zip_code       String?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  transactions  FinancialTransaction[]
+}
+
+model PaymentMethod {
+  id        String       @id @default(uuid())
+  name      String       @unique
+  isActive  Boolean      @default(true)
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+
+  salesOrders SalesOrder[]
+}
+
+model CompanySettings {
+  id        String   @id @default(uuid())
+  name      String
+  cnpj      String?
+  address   String?
+  phone     String?
+  email     String?
+  logo_data String?  @db.Text
+  updatedAt DateTime @updatedAt
+
+  // Fiscal fields
+  ie               String?
+  im               String?
+  crt              String? // 1-Simples Nacional, 2-Simples Nacional - excesso, 3-Regime Normal
+  ibge_city_code   String?
+  certificate_pfx  String? @db.Text
+  certificate_pass String?
+}
+
+model Invoice {
+  id             String   @id @default(uuid())
+  number         Int?
+  series         Int?
+  accessKey      String?  @unique
+  status         String   // DRAFT, PROCESSING, AUTHORIZED, CANCELLED, REJECTED
+  billingMode    String   @default("ITEM_PAI") // ITEM_PAI ou COMPONENTES
+  xmlUrl         String?
+  pdfUrl         String?
+  sefazResponse  String?  @db.Text
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  salesOrderId   String   @unique
+  salesOrder     SalesOrder @relation(fields: [salesOrderId], references: [id])
+}
