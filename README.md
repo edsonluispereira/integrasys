@@ -93,7 +93,7 @@ cd integrasys
 docker compose up -d --build
 ```
 
-Acesse: **http://IP_DA_VPS:8081**
+Acesse: **https://erp.integrasysoficial.com.br**
 
 ### Atualizar após alterações
 
@@ -111,6 +111,13 @@ docker compose up -d --build
 
 ---
 
+## Acesso ao Sistema
+
+| Ambiente | URL |
+|---|---|
+| **Produção** | https://erp.integrasysoficial.com.br |
+| **Local** | http://localhost:8081 |
+
 ## Acesso SSH à VPS
 
 | Campo | Valor |
@@ -127,7 +134,7 @@ docker compose up -d --build
 
 | Campo | Valor |
 |---|---|
-| Host | `localhost` (local) ou `191.252.201.27` (VPS) |
+| Host | `localhost` (local) ou `191.252.201.27` (VPS/DBeaver) |
 | Porta | `5432` |
 | Database | `integrasys` |
 | Usuário | `integrasys` |
